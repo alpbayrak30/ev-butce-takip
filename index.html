@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ev Bütçem - Modern Dönemsel Finansal Yönetim</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen pb-16 antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- Üst Başlık / Navigation Bar -->
+  <header class="bg-slate-800/80 backdrop-blur-md border-b border-slate-700/60 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+          <i class="fa-solid fa-chart-pie text-lg"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            Ev Bütçem
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">PRO</span>
+          </h1>
+          <p class="text-xs text-slate-400">Kişisel Finans ve Harcama Yönetimi</p>
+        </div>
+      </div>
+
+      <!-- Dönem Seçici (Month/Year Picker Control) -->
+      <div class="flex items-center bg-slate-900/80 border border-indigo-500/30 rounded-2xl p-1.5 shadow-inner">
+        <button onclick="changeMonth(-1)" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 flex items-center justify-center transition" title="Önceki Ay">
+          <i class="fa-solid fa-chevron-left text-xs"></i>
+        </button>
+        
+        <div class="flex items-center gap-2 px-3">
+          <i class="fa-regular fa-calendar-days text-indigo-400"></i>
+          <input type="month" id="periodPicker" onchange="onPeriodChange(this.value)" class="bg-transparent text-sm font-semibold text-white focus:outline-none cursor-pointer [color-scheme:dark]">
+        </div>
+
+        <button onclick="changeMonth(1)" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 flex items-center justify-center transition" title="Sonraki Ay">
+          <i class="fa-solid fa-chevron-right text-xs"></i>
+        </button>
+      </div>
+
+      <!-- İçe / Dışa Aktar Butonları -->
+      <div class="flex items-center gap-2">
+        <button onclick="exportData()" class="bg-slate-700/80 hover:bg-slate-700 text-slate-200 text-xs font-medium py-2 px-3.5 rounded-xl border border-slate-600/60 transition flex items-center gap-2 shadow-sm">
+          <i class="fa-solid fa-file-export text-indigo-400"></i> Dışa Aktar
+        </button>
+        <label class="bg-slate-700/80 hover:bg-slate-700 text-slate-200 text-xs font-medium py-2 px-3.5 rounded-xl border border-slate-600/60 transition flex items-center gap-2 cursor-pointer shadow-sm">
+          <i class="fa-solid fa-file-import text-emerald-400"></i> İçe Aktar
+          <input type="file" id="importFile" onchange="importData(event)" class="hidden" accept=".json">
+        </label>
+        <button onclick="clearAll()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium py-2 px-3 rounded-xl border border-rose-500/20 transition flex items-center gap-1.5" title="Tüm Verileri Sıfırla">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 space-y-8">
+
+    <!-- Aktif Dönem Bilgi Şeridi -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-gradient-to-r from-indigo-900/30 via-slate-800/40 to-slate-800/20 border border-indigo-500/20 p-4 rounded-2xl backdrop-blur-sm">
+      <div class="flex items-center gap-2.5">
+        <span class="inline-flex items-center justify-center w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-xs text-slate-400">Görüntülenen Dönem:</span>
+        <h2 id="currentPeriodLabel" class="text-sm font-bold text-white tracking-wide">Yükleniyor...</h2>
+      </div>
+      <div class="text-xs text-slate-400">
+        Bu aya ait kayıtlı toplam <span id="periodTransactionCount" class="font-semibold text-indigo-300">0</span> işlem bulunmaktadır.
+      </div>
+    </div>
+
+    <!-- KPI / Özet Kartları -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <!-- Gelir Kartı -->
+      <div class="bg-slate-800/60 border border-slate-700/50 p-6 rounded-2xl relative overflow-hidden shadow-xl backdrop-blur-sm group hover:border-emerald-500/40 transition-all duration-300">
+        <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
+        <div class="flex justify-between items-start mb-3">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Dönem Geliri</span>
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-sm">
+            <i class="fa-solid fa-arrow-trend-up"></i>
+          </div>
+        </div>
+        <h3 id="totalIncome" class="text-3xl font-extrabold text-emerald-400 tracking-tight">₺0,00</h3>
+        <p class="text-xs text-slate-500 mt-2 flex items-center gap-1">
+          <i class="fa-regular fa-circle-check text-emerald-500"></i> Seçilen ay eklenen kazançlar
+        </p>
+      </div>
+
+      <!-- Gider Kartı -->
+      <div class="bg-slate-800/60 border border-slate-700/50 p-6 rounded-2xl relative overflow-hidden shadow-xl backdrop-blur-sm group hover:border-rose-500/40 transition-all duration-300">
+        <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl group-hover:bg-rose-500/20 transition-all"></div>
+        <div class="flex justify-between items-start mb-3">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Dönem Gideri</span>
+          <div class="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 text-sm">
+            <i class="fa-solid fa-arrow-trend-down"></i>
+          </div>
+        </div>
+        <h3 id="totalExpense" class="text-3xl font-extrabold text-rose-400 tracking-tight">₺0,00</h3>
+        <p class="text-xs text-slate-500 mt-2 flex items-center gap-1">
+          <i class="fa-regular fa-clock text-rose-400"></i> Seçilen ay yapılan harcamalar
+        </p>
+      </div>
+
+      <!-- Kalan Bakiye Kartı -->
+      <div class="bg-slate-800/60 border border-slate-700/50 p-6 rounded-2xl relative overflow-hidden shadow-xl backdrop-blur-sm group hover:border-indigo-500/40 transition-all duration-300">
+        <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-all"></div>
+        <div class="flex justify-between items-start mb-3">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Dönem Net Bakiye</span>
+          <div class="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-sm">
+            <i class="fa-solid fa-wallet"></i>
+          </div>
+        </div>
+        <h3 id="netBalance" class="text-3xl font-extrabold text-white tracking-tight">₺0,00</h3>
+        <p id="savingsRate" class="text-xs text-indigo-300/80 mt-2 font-medium flex items-center gap-1">
+          <i class="fa-solid fa-piggy-bank text-indigo-400"></i> Kullanılabilir varlık durumu
+        </p>
+      </div>
+    </div>
+
+    <!-- Hızlı İşlem Ekleme Formu -->
+    <section class="bg-slate-800/40 border border-slate-700/60 p-6 rounded-3xl shadow-2xl backdrop-blur-md">
+      <h2 class="text-base font-bold text-slate-200 mb-5 flex items-center gap-2">
+        <i class="fa-solid fa-bolt text-amber-400"></i> İşlem Ekle
+      </h2>
+      <form id="transactionForm" onsubmit="addTransaction(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">İşlem Tarihi</label>
+          <input type="date" id="transactionDate" required class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/80 transition [color-scheme:dark]">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">İşlem Tipi</label>
+          <select id="type" onchange="updateCategories()" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/80 transition">
+            <option value="expense">Gider (-)</option>
+            <option value="income">Gelir (+)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Kategori</label>
+          <select id="category" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/80 transition">
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Tutar (TL)</label>
+          <input type="number" id="amount" step="0.01" placeholder="0.00" required class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/80 transition">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Açıklama</label>
+          <input type="text" id="description" placeholder="Örn: Market harcaması" required class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/80 transition">
+        </div>
+
+        <div class="flex items-end">
+          <button type="submit" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-plus"></i> Ekle
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Grafikler ve İşlem Geçmişi -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- Sol: Pasta Grafik Dağılımı -->
+      <section class="lg:col-span-5 bg-slate-800/40 border border-slate-700/60 p-6 rounded-3xl shadow-xl flex flex-col justify-between">
+        <div>
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-base font-bold text-slate-200 flex items-center gap-2">
+              <i class="fa-solid fa-chart-pie text-indigo-400"></i> Gider Dağılımı
+            </h2>
+            <span class="text-xs text-slate-400 font-medium bg-slate-700/50 px-2.5 py-1 rounded-lg">Pasta Grafik</span>
+          </div>
+          <p class="text-xs text-slate-400 mb-6">Seçilen döneme ait harcamaların kategorilere göre dağılımı</p>
+        </div>
+
+        <div class="relative w-full flex items-center justify-center min-h-[260px] my-auto">
+          <canvas id="expenseChart"></canvas>
+          <div id="chartPlaceholder" class="hidden absolute text-center text-slate-500 text-xs p-4">
+            <i class="fa-solid fa-chart-pie text-3xl mb-2 text-slate-600 block"></i>
+            Bu ay için henüz gider kaydı bulunmuyor.
+          </div>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-slate-700/40 text-center">
+          <p class="text-xs text-slate-500">Kategorilerin detayları üzerine gelindiğinde görüntülenir.</p>
+        </div>
+      </section>
+
+      <!-- Sağ: İşlem Listesi -->
+      <section class="lg:col-span-7 bg-slate-800/40 border border-slate-700/60 p-6 rounded-3xl shadow-xl flex flex-col">
+        <div class="flex justify-between items-center mb-5">
+          <div>
+            <h2 class="text-base font-bold text-slate-200 flex items-center gap-2">
+              <i class="fa-solid fa-list-ul text-indigo-400"></i> Dönem Hareketleri
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Seçilen aya ait kaydedilen tüm gelir ve giderler</p>
+          </div>
+          <span id="itemCount" class="text-xs font-semibold text-slate-300 bg-slate-700/60 px-3 py-1 rounded-full">0 İşlem</span>
+        </div>
+
+        <div id="transactionList" class="space-y-3 overflow-y-auto max-h-[380px] pr-1">
+          <!-- Dinamik Liste -->
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <script>
+    const categories = {
+      expense: [
+        { name: "Mutfak & Market", icon: "fa-cart-shopping", color: "#6366f1" },
+        { name: "Kira & Aidat", icon: "fa-house", color: "#ec4899" },
+        { name: "Fatura & Abonelik", icon: "fa-bolt", color: "#f59e0b" },
+        { name: "Ulaşım & Yakıt", icon: "fa-car", color: "#10b981" },
+        { name: "Eğlence & Sosyal", icon: "fa-gamepad", color: "#3b82f6" },
+        { name: "Sağlık & Spor", icon: "fa-heart-pulse", color: "#8b5cf6" },
+        { name: "Yatırım & Birikim", icon: "fa-piggy-bank", color: "#14b8a6" },
+        { name: "Diğer Giderler", icon: "fa-receipt", color: "#64748b" }
+      ],
+      income: [
+        { name: "Maaş", icon: "fa-briefcase", color: "#10b981" },
+        { name: "Ek Gelir", icon: "fa-coins", color: "#3b82f6" },
+        { name: "Yatırım & Getiri", icon: "fa-chart-line", color: "#8b5cf6" },
+        { name: "Diğer Gelirler", icon: "fa-wallet", color: "#f59e0b" }
+      ]
+    };
+
+    let transactions = JSON.parse(localStorage.getItem("ev_hesap_transactions")) || [];
+    let chartInstance = null;
+    let selectedPeriod = getTodayYYYYMM(); // 'YYYY-MM' formatında varsayılan dönem
+
+    function getTodayYYYYMM() {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      return `${yyyy}-${mm}`;
+    }
+
+    function formatPeriodLabel(yyyyMM) {
+      const [year, month] = yyyyMM.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+      return date.toLocaleDateString("tr-TR", { month: 'long', year: 'numeric' });
+    }
+
+    // İlk yüklemede tarihler ve seçici ayarlanıyor
+    function initPeriod() {
+      const periodPicker = document.getElementById("periodPicker");
+      periodPicker.value = selectedPeriod;
+      
+      // Form tarih seçicisine bugünün tarihini koy
+      const todayIso = new Date().toISOString().split('T')[0];
+      document.getElementById("transactionDate").value = todayIso;
+      
+      updatePeriodLabel();
+    }
+
+    function updatePeriodLabel() {
+      document.getElementById("currentPeriodLabel").innerText = formatPeriodLabel(selectedPeriod);
+    }
+
+    function onPeriodChange(value) {
+      if (!value) return;
+      selectedPeriod = value;
+      
+      // Form tarih alanını da seçilen ayın ilk gününe ayarla
+      const dateInput = document.getElementById("transactionDate");
+      const currentInputVal = dateInput.value;
+      if (!currentInputVal.startsWith(selectedPeriod)) {
+        dateInput.value = `${selectedPeriod}-01`;
+      }
+
+      updatePeriodLabel();
+      renderDashboard();
+    }
+
+    function changeMonth(delta) {
+      const [year, month] = selectedPeriod.split('-').map(Number);
+      const newDate = new Date(year, month - 1 + delta, 1);
+      const yyyy = newDate.getFullYear();
+      const mm = String(newDate.getMonth() + 1).padStart(2, '0');
+      selectedPeriod = `${yyyy}-${mm}`;
+      
+      document.getElementById("periodPicker").value = selectedPeriod;
+      
+      const dateInput = document.getElementById("transactionDate");
+      dateInput.value = `${selectedPeriod}-01`;
+
+      updatePeriodLabel();
+      renderDashboard();
+    }
+
+    function updateCategories() {
+      const type = document.getElementById("type").value;
+      const categorySelect = document.getElementById("category");
+      categorySelect.innerHTML = categories[type].map(c => `<option value="${c.name}">${c.name}</option>`).join("");
+    }
+
+    function getCategoryMeta(type, categoryName) {
+      const found = categories[type].find(c => c.name === categoryName);
+      return found || { icon: "fa-circle-dot", color: "#6366f1" };
+    }
+
+    function addTransaction(e) {
+      e.preventDefault();
+      const dateVal = document.getElementById("transactionDate").value;
+      const type = document.getElementById("type").value;
+      const category = document.getElementById("category").value;
+      const amount = parseFloat(document.getElementById("amount").value);
+      const description = document.getElementById("description").value;
+
+      if (!amount || amount <= 0 || !dateVal) return;
+
+      const transaction = {
+        id: Date.now(),
+        date: dateVal, // ISO YYYY-MM-DD
+        type,
+        category,
+        amount,
+        description
+      };
+
+      transactions.unshift(transaction);
+      
+      // Otomatik olarak eklenen işlemin dönemine geçiş yap
+      const addedPeriod = dateVal.substring(0, 7);
+      if (addedPeriod !== selectedPeriod) {
+        selectedPeriod = addedPeriod;
+        document.getElementById("periodPicker").value = selectedPeriod;
+        updatePeriodLabel();
+      }
+
+      saveAndRender();
+      
+      // Formu sıfırla ama tarihi seçili dönem olarak tut
+      document.getElementById("amount").value = "";
+      document.getElementById("description").value = "";
+    }
+
+    function deleteTransaction(id) {
+      transactions = transactions.filter(t => t.id !== id);
+      saveAndRender();
+    }
+
+    function clearAll() {
+      if (confirm("Tüm dönemlere ait finansal verileri silmek istediğinize emin misiniz?")) {
+        transactions = [];
+        saveAndRender();
+      }
+    }
+
+    function saveAndRender() {
+      localStorage.setItem("ev_hesap_transactions", JSON.stringify(transactions));
+      renderDashboard();
+    }
+
+    function getFilteredTransactions() {
+      return transactions.filter(t => {
+        if (!t.date) return true; // Eski veri uyumluluğu
+        return t.date.startsWith(selectedPeriod);
+      });
+    }
+
+    function renderDashboard() {
+      const filtered = getFilteredTransactions();
+      document.getElementById("periodTransactionCount").innerText = filtered.length;
+      
+      renderSummary(filtered);
+      renderList(filtered);
+      renderChart(filtered);
+    }
+
+    function renderSummary(filtered) {
+      const income = filtered.filter(t => t.type === "income").reduce((acc, t) => acc + t.amount, 0);
+      const expense = filtered.filter(t => t.type === "expense").reduce((acc, t) => acc + t.amount, 0);
+      const balance = income - expense;
+
+      document.getElementById("totalIncome").innerText = `₺${income.toLocaleString("tr-TR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      document.getElementById("totalExpense").innerText = `₺${expense.toLocaleString("tr-TR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      document.getElementById("netBalance").innerText = `₺${balance.toLocaleString("tr-TR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+      const savingsRateEl = document.getElementById("savingsRate");
+      if (income > 0) {
+        const rate = Math.max(0, Math.round((balance / income) * 100));
+        savingsRateEl.innerHTML = `<i class="fa-solid fa-piggy-bank text-indigo-400"></i> Dönem Tasarruf Oranı: %${rate}`;
+      } else {
+        savingsRateEl.innerHTML = `<i class="fa-solid fa-piggy-bank text-indigo-400"></i> Kullanılabilir varlık durumu`;
+      }
+    }
+
+    function formatDateDisplay(dateStr) {
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      if (parts.length < 3) return dateStr;
+      return `${parts[2]}.${parts[1]}.${parts[0]}`;
+    }
+
+    function renderList(filtered) {
+      const list = document.getElementById("transactionList");
+      const itemCount = document.getElementById("itemCount");
+      itemCount.innerText = `${filtered.length} İşlem`;
+
+      if (filtered.length === 0) {
+        list.innerHTML = `
+          <div class="text-center py-12 text-slate-500">
+            <i class="fa-solid fa-receipt text-3xl mb-3 text-slate-600 block"></i>
+            <p class="text-sm">Bu döneme ait eklenmiş bir finansal hareket bulunmuyor.</p>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = filtered.map(t => {
+        const meta = getCategoryMeta(t.type, t.category);
+        const isIncome = t.type === "income";
+
+        return `
+          <div class="flex items-center justify-between p-3.5 bg-slate-900/60 border border-slate-700/40 rounded-2xl hover:border-slate-600/60 transition group">
+            <div class="flex items-center gap-3.5">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm ${isIncome ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}">
+                <i class="fa-solid ${meta.icon}"></i>
+              </div>
+              <div>
+                <h4 class="text-sm font-semibold text-slate-200">${t.description}</h4>
+                <p class="text-xs text-slate-400 font-medium">${t.category} <span class="text-slate-600">•</span> ${formatDateDisplay(t.date)}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-4">
+              <span class="text-sm font-bold tracking-tight ${isIncome ? 'text-emerald-400' : 'text-rose-400'}">
+                ${isIncome ? '+' : '-'}₺${t.amount.toLocaleString("tr-TR", {minimumFractionDigits: 2})}
+              </span>
+              <button onclick="deleteTransaction(${t.id})" class="text-slate-500 hover:text-rose-400 text-xs p-1 opacity-80 group-hover:opacity-100 transition" title="Sil">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderChart(filtered) {
+      const ctx = document.getElementById("expenseChart").getContext("2d");
+      const chartPlaceholder = document.getElementById("chartPlaceholder");
+      const expenses = filtered.filter(t => t.type === "expense");
+
+      const categoryTotals = {};
+      expenses.forEach(t => {
+        categoryTotals[t.category] = (categoryTotals[t.category] || 0) + t.amount;
+      });
+
+      const labels = Object.keys(categoryTotals);
+      const data = Object.values(categoryTotals);
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      if (data.length === 0) {
+        chartPlaceholder.classList.remove("hidden");
+        return;
+      } else {
+        chartPlaceholder.classList.add("hidden");
+      }
+
+      const bgColors = labels.map(label => getCategoryMeta("expense", label).color);
+
+      chartInstance = new Chart(ctx, {
+        type: "pie",
+        data: {
+          labels,
+          datasets: [{
+            data,
+            backgroundColor: bgColors,
+            borderWidth: 2,
+            borderColor: "#1e293b",
+            hoverOffset: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: {
+                color: "#94a3b8",
+                font: { family: "Inter", size: 11 },
+                padding: 14,
+                usePointStyle: true,
+                pointStyle: "circle"
+              }
+            },
+            tooltip: {
+              backgroundColor: "#0f172a",
+              titleColor: "#f8fafc",
+              bodyColor: "#cbd5e1",
+              borderColor: "#334155",
+              borderWidth: 1,
+              padding: 12,
+              callbacks: {
+                label: function(context) {
+                  const val = context.raw || 0;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = Math.round((val / total) * 100);
+                  return ` ₺${val.toLocaleString("tr-TR", {minimumFractionDigits: 2})} (%${percentage})`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(transactions));
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `ev_hesap_yedek_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    function importData(event) {
+      const fileReader = new FileReader();
+      fileReader.onload = function(e) {
+        try {
+          const importedTransactions = JSON.parse(e.target.result);
+          if (Array.isArray(importedTransactions)) {
+            // Tarihi bulunmayan eski kayıtlara varsayılan bugün tarihini ver
+            transactions = importedTransactions.map(t => ({
+              ...t,
+              date: t.date || new Date().toISOString().split('T')[0]
+            }));
+            saveAndRender();
+            alert("Veriler başarıyla içeri aktarıldı!");
+          }
+        } catch (err) {
+          alert("Hatalı dosya biçimi!");
+        }
+      };
+      fileReader.readAsText(event.target.files[0]);
+    }
+
+    // Başlangıç Mantığı
+    initPeriod();
+    updateCategories();
+    saveAndRender();
+  </script>
+</body>
+</html>
