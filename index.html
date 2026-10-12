@@ -14,6 +14,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
     tailwind.config = {
@@ -30,19 +32,24 @@
 <body class="bg-slate-900 text-slate-100 font-sans min-h-screen pb-16 antialiased selection:bg-indigo-500 selection:text-white">
 
   <!-- Üst Başlık / Navigation Bar -->
-  <header class="bg-slate-800/80 backdrop-blur-md border-b border-slate-700/60 sticky top-0 z-50">
-    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
-          <i class="fa-solid fa-chart-pie text-lg"></i>
+  <header class="bg-slate-800/85 backdrop-blur-md border-b border-slate-700/60 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col lg:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+            <i class="fa-solid fa-chart-pie text-lg"></i>
+          </div>
+          <div>
+            <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+              Ev Bütçem
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">PRO</span>
+            </h1>
+            <p class="text-xs text-slate-400">Kişisel Finans ve Harcama Yönetimi</p>
+          </div>
         </div>
-        <div>
-          <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            Ev Bütçem
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">PRO</span>
-          </h1>
-          <p class="text-xs text-slate-400">Kişisel Finans ve Harcama Yönetimi</p>
-        </div>
+
+        <!-- Mobil Giriş/Kullanıcı Durumu Rozeti -->
+        <div id="mobileAuthStatus" class="lg:hidden text-xs"></div>
       </div>
 
       <!-- Dönem Seçici (Month/Year Picker Control) -->
@@ -61,21 +68,64 @@
         </button>
       </div>
 
-      <!-- İçe / Dışa Aktar Butonları -->
-      <div class="flex items-center gap-2">
-        <button onclick="exportData()" class="bg-slate-700/80 hover:bg-slate-700 text-slate-200 text-xs font-medium py-2 px-3.5 rounded-xl border border-slate-600/60 transition flex items-center gap-2 shadow-sm">
+      <!-- İçe / Dışa Aktar ve Profil/Çıkış Butonları -->
+      <div class="flex items-center gap-2 flex-wrap justify-end">
+        <button onclick="exportData()" class="bg-slate-700/80 hover:bg-slate-700 text-slate-200 text-xs font-medium py-2 px-3.5 rounded-xl border border-slate-600/60 transition flex items-center gap-2 shadow-sm" title="Verileri JSON olarak indir">
           <i class="fa-solid fa-file-export text-indigo-400"></i> Dışa Aktar
         </button>
-        <label class="bg-slate-700/80 hover:bg-slate-700 text-slate-200 text-xs font-medium py-2 px-3.5 rounded-xl border border-slate-600/60 transition flex items-center gap-2 cursor-pointer shadow-sm">
+        <label class="bg-slate-700/80 hover:bg-slate-700 text-slate-200 text-xs font-medium py-2 px-3.5 rounded-xl border border-slate-600/60 transition flex items-center gap-2 cursor-pointer shadow-sm" title="Yedek dosyasını yükle">
           <i class="fa-solid fa-file-import text-emerald-400"></i> İçe Aktar
           <input type="file" id="importFile" onchange="importData(event)" class="hidden" accept=".json">
         </label>
         <button onclick="clearAll()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium py-2 px-3 rounded-xl border border-rose-500/20 transition flex items-center gap-1.5" title="Tüm Verileri Sıfırla">
           <i class="fa-solid fa-trash-can"></i>
         </button>
+        
+        <!-- Oturum Açıkken Çıkış Yap Butonu (Header içinde) -->
+        <div id="headerAuthArea" class="hidden items-center gap-2 pl-2 border-l border-slate-700">
+          <span id="userEmailDisplay" class="text-xs text-slate-300 max-w-[140px] truncate"></span>
+          <button onclick="handleLogout()" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs font-medium py-2 px-3 rounded-xl transition flex items-center gap-1.5" title="Çıkış Yap">
+            <i class="fa-solid fa-right-from-bracket"></i> Çıkış
+          </button>
+        </div>
       </div>
     </div>
   </header>
+
+  <!-- Giriş / Kayıt Ol Modal / Overlay Ekranı (Oturum Açılmamışsa Görünür) -->
+  <div id="authOverlay" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6">
+      <div class="text-center space-y-2">
+        <div class="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center mx-auto text-xl shadow-inner">
+          <i class="fa-solid fa-lock"></i>
+        </div>
+        <h2 class="text-xl font-bold text-white">Ev Bütçem'e Hoş Geldiniz</h2>
+        <p class="text-xs text-slate-400">Finansal verilerinize güvenle erişmek için lütfen giriş yapın veya hesap oluşturun.</p>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">E-posta Adresi</label>
+          <input type="email" id="authEmail" placeholder="ornek@mail.com" class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Şifre</label>
+          <input type="password" id="authPassword" placeholder="••••••••" class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div id="authMessage" class="text-xs text-center font-medium min-h-[20px]"></div>
+
+        <div class="grid grid-cols-2 gap-3 pt-2">
+          <button onclick="handleLogin()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-4 rounded-xl text-sm transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-right-to-bracket"></i> Giriş Yap
+          </button>
+          <button onclick="handleSignUp()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold py-3 px-4 rounded-xl text-sm transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-user-plus"></i> Kayıt Ol
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <main class="max-w-6xl mx-auto px-4 py-8 space-y-8">
 
@@ -232,6 +282,19 @@
   </main>
 
   <script>
+    // Supabase Bağlantı Bilgileri
+    const SUPABASE_URL = 'https://kkinkxzetktsjwhwvrph.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_BAt3gR01RArT9MfvHaffBw_UCiVfZjO'; // Supabase publishable/anon anahtarınızı buraya yapıştırın
+
+    // Not: Gerçek projenizde anahtarı güvenli tutmak için Vercel Environment Variables kullanabilirsiniz.
+    // Şimdilik test amaçlı yukarıdaki anon key değerini ekleyebilirsiniz.
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentUser = null;
+    let transactions = [];
+    let chartInstance = null;
+    let selectedPeriod = getTodayYYYYMM();
+
     const categories = {
       expense: [
         { name: "Mutfak & Market", icon: "fa-cart-shopping", color: "#6366f1" },
@@ -251,10 +314,6 @@
       ]
     };
 
-    let transactions = JSON.parse(localStorage.getItem("ev_hesap_transactions")) || [];
-    let chartInstance = null;
-    let selectedPeriod = getTodayYYYYMM(); // 'YYYY-MM' formatında varsayılan dönem
-
     function getTodayYYYYMM() {
       const today = new Date();
       const yyyy = today.getFullYear();
@@ -268,12 +327,95 @@
       return date.toLocaleDateString("tr-TR", { month: 'long', year: 'numeric' });
     }
 
-    // İlk yüklemede tarihler ve seçici ayarlanıyor
+    // Oturum Kontrolü ve Başlatma
+    async function initAuth() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        currentUser = session.user;
+        document.getElementById("authOverlay").classList.add("hidden");
+        document.getElementById("headerAuthArea").classList.remove("hidden");
+        document.getElementById("headerAuthArea").classList.add("flex");
+        document.getElementById("userEmailDisplay").innerText = currentUser.email;
+        document.getElementById("mobileAuthStatus").innerHTML = `<span class="text-indigo-300 font-semibold">${currentUser.email}</span> (<button onclick="handleLogout()" class="text-rose-400 underline">Çıkış</button>)`;
+        
+        await loadTransactionsFromSupabase();
+      } else {
+        document.getElementById("authOverlay").classList.remove("hidden");
+        document.getElementById("headerAuthArea").classList.add("hidden");
+        document.getElementById("headerAuthArea").classList.remove("flex");
+      }
+      initPeriod();
+      updateCategories();
+    }
+
+    async function handleSignUp() {
+      const email = document.getElementById("authEmail").value;
+      const password = document.getElementById("authPassword").value;
+      const msgEl = document.getElementById("authMessage");
+
+      if (!email || !password) {
+        msgEl.style.color = "#f43f5e";
+        msgEl.innerText = "Lütfen e-posta ve şifrenizi girin.";
+        return;
+      }
+
+      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) {
+        msgEl.style.color = "#f43f5e";
+        msgEl.innerText = "Kayıt hatası: " + error.message;
+      } else {
+        msgEl.style.color = "#10b981";
+        msgEl.innerText = "Kayıt başarılı! Şimdi giriş yapabilirsiniz.";
+      }
+    }
+
+    async function handleLogin() {
+      const email = document.getElementById("authEmail").value;
+      const password = document.getElementById("authPassword").value;
+      const msgEl = document.getElementById("authMessage");
+
+      if (!email || !password) {
+        msgEl.style.color = "#f43f5e";
+        msgEl.innerText = "Lütfen e-posta ve şifrenizi girin.";
+        return;
+      }
+
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        msgEl.style.color = "#f43f5e";
+        msgEl.innerText = "Giriş hatası: " + error.message;
+      } else {
+        msgEl.style.color = "#10b981";
+        msgEl.innerText = "Giriş başarılı! Yükleniyor...";
+        setTimeout(() => location.reload(), 800);
+      }
+    }
+
+    async function handleLogout() {
+      await supabaseClient.auth.signOut();
+      location.reload();
+    }
+
+    // Supabase Veritabanından Verileri Çekme
+    async function loadTransactionsFromSupabase() {
+      if (!currentUser) return;
+      const { data, error }  = await supabaseClient
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (error) {
+        console.error("Veriler yüklenirken hata:", error.message);
+      } else {
+        transactions = data || [];
+        renderDashboard();
+      }
+    }
+
     function initPeriod() {
       const periodPicker = document.getElementById("periodPicker");
       periodPicker.value = selectedPeriod;
       
-      // Form tarih seçicisine bugünün tarihini koy
       const todayIso = new Date().toISOString().split('T')[0];
       document.getElementById("transactionDate").value = todayIso;
       
@@ -288,7 +430,6 @@
       if (!value) return;
       selectedPeriod = value;
       
-      // Form tarih alanını da seçilen ayın ilk gününe ayarla
       const dateInput = document.getElementById("transactionDate");
       const currentInputVal = dateInput.value;
       if (!currentInputVal.startsWith(selectedPeriod)) {
@@ -326,8 +467,11 @@
       return found || { icon: "fa-circle-dot", color: "#6366f1" };
     }
 
-    function addTransaction(e) {
+    // Supabase Veritabanına İşlem Ekleme
+    async function addTransaction(e) {
       e.preventDefault();
+      if (!currentUser) return;
+
       const dateVal = document.getElementById("transactionDate").value;
       const type = document.getElementById("type").value;
       const category = document.getElementById("category").value;
@@ -336,52 +480,80 @@
 
       if (!amount || amount <= 0 || !dateVal) return;
 
-      const transaction = {
-        id: Date.now(),
-        date: dateVal, // ISO YYYY-MM-DD
+      const newRecord = {
+        user_id: currentUser.id,
+        date: dateVal,
         type,
         category,
         amount,
         description
       };
 
-      transactions.unshift(transaction);
-      
-      // Otomatik olarak eklenen işlemin dönemine geçiş yap
-      const addedPeriod = dateVal.substring(0, 7);
-      if (addedPeriod !== selectedPeriod) {
-        selectedPeriod = addedPeriod;
-        document.getElementById("periodPicker").value = selectedPeriod;
-        updatePeriodLabel();
-      }
+      const { data, error } = await supabaseClient
+        .from('transactions')
+        .insert([newRecord])
+        .select();
 
-      saveAndRender();
-      
-      // Formu sıfırla ama tarihi seçili dönem olarak tut
-      document.getElementById("amount").value = "";
-      document.getElementById("description").value = "";
-    }
+      if (error) {
+        alert("İşlem eklenirken hata oluştu: " + error.message);
+      } else if (data && data.length > 0) {
+        transactions.unshift(data[0]);
+        
+        const addedPeriod = dateVal.substring(0, 7);
+        if (addedPeriod !== selectedPeriod) {
+          selectedPeriod = addedPeriod;
+          document.getElementById("periodPicker").value = selectedPeriod;
+          updatePeriodLabel();
+        }
 
-    function deleteTransaction(id) {
-      transactions = transactions.filter(t => t.id !== id);
-      saveAndRender();
-    }
-
-    function clearAll() {
-      if (confirm("Tüm dönemlere ait finansal verileri silmek istediğinize emin misiniz?")) {
-        transactions = [];
-        saveAndRender();
+        renderDashboard();
+        
+        document.getElementById("amount").value = "";
+        document.getElementById("description").value = "";
       }
     }
 
-    function saveAndRender() {
-      localStorage.setItem("ev_hesap_transactions", JSON.stringify(transactions));
-      renderDashboard();
+    // Supabase Veritabanından İşlem Silme
+    async function deleteTransaction(id) {
+      if (!confirm("Bu kaydı silmek istediğinize emin misiniz?")) return;
+
+      const { error } = await supabaseClient
+        .from('transactions')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        alert("Silme işleminde hata: " + error.message);
+      } else {
+        transactions = transactions.filter(t => t.id !== id);
+        renderDashboard();
+      }
+    }
+
+    async function clearAll() {
+      if (confirm("Bu döneme veya hesabınıza ait tüm kayıtları silmek istediğinize emin misiniz?")) {
+        const filtered = getFilteredTransactions();
+        const idsToDelete = filtered.map(t => t.id);
+
+        if (idsToDelete.length === 0) return;
+
+        const { error } = await supabaseClient
+          .from('transactions')
+          .delete()
+          .in('id', idsToDelete);
+
+        if (error) {
+          alert("Hata: " + error.message);
+        } else {
+          transactions = transactions.filter(t => !idsToDelete.includes(t.id));
+          renderDashboard();
+        }
+      }
     }
 
     function getFilteredTransactions() {
       return transactions.filter(t => {
-        if (!t.date) return true; // Eski veri uyumluluğu
+        if (!t.date) return true;
         return t.date.startsWith(selectedPeriod);
       });
     }
@@ -454,7 +626,7 @@
               <span class="text-sm font-bold tracking-tight ${isIncome ? 'text-emerald-400' : 'text-rose-400'}">
                 ${isIncome ? '+' : '-'}₺${t.amount.toLocaleString("tr-TR", {minimumFractionDigits: 2})}
               </span>
-              <button onclick="deleteTransaction(${t.id})" class="text-slate-500 hover:text-rose-400 text-xs p-1 opacity-80 group-hover:opacity-100 transition" title="Sil">
+              <button onclick="deleteTransaction('${t.id}')" class="text-slate-500 hover:text-rose-400 text-xs p-1 opacity-80 group-hover:opacity-100 transition" title="Sil">
                 <i class="fa-solid fa-trash"></i>
               </button>
             </div>
@@ -546,19 +718,29 @@
       downloadAnchor.remove();
     }
 
-    function importData(event) {
+    async function importData(event) {
       const fileReader = new FileReader();
-      fileReader.onload = function(e) {
+      fileReader.onload = async function(e) {
         try {
           const importedTransactions = JSON.parse(e.target.result);
-          if (Array.isArray(importedTransactions)) {
-            // Tarihi bulunmayan eski kayıtlara varsayılan bugün tarihini ver
-            transactions = importedTransactions.map(t => ({
-              ...t,
-              date: t.date || new Date().toISOString().split('T')[0]
+          if (Array.isArray(importedTransactions) && currentUser) {
+            // Yüklenen verileri Supabase formatına uygun hale getirip tek tek ekleyelim
+            const recordsToInsert = importedTransactions.map(t => ({
+              user_id: currentUser.id,
+              date: t.date || new Date().toISOString().split('T')[0],
+              type: t.type || 'expense',
+              category: t.category || 'Diğer Giderler',
+              amount: parseFloat(t.amount) || 0,
+              description: t.description || 'İçe aktarılan işlem'
             }));
-            saveAndRender();
-            alert("Veriler başarıyla içeri aktarıldı!");
+
+            const { error } = await supabaseClient.from('transactions').insert(recordsToInsert);
+            if (error) {
+              alert("İçe aktarma hatası: " + error.message);
+            } else {
+              await loadTransactionsFromSupabase();
+              alert("Veriler başarıyla bulut veritabanına aktarıldı!");
+            }
           }
         } catch (err) {
           alert("Hatalı dosya biçimi!");
@@ -567,10 +749,8 @@
       fileReader.readAsText(event.target.files[0]);
     }
 
-    // Başlangıç Mantığı
-    initPeriod();
-    updateCategories();
-    saveAndRender();
+    // Uygulamayı Başlat
+    initAuth();
   </script>
 </body>
 </html>
